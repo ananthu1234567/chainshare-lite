@@ -1,122 +1,49 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useState } from "react";
+import { encryptFile, decryptFile, sha256Hex } from "./lib/crypto";
+import { uploadEncrypted } from "./lib/api";
+import { saveFile } from "./lib/saveFile";
 
-function App() {
-  const [count, setCount] = useState(0)
+const BASE = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const DUMMY = "0x0000000000000000000000000000000000000001";
+
+export default function App() {
+  const [file, setFile] = useState(null);
+  const [pw, setPw] = useState("");
+  const [log, setLog] = useState([]);
+
+  const add = (m) => setLog((l) => [...l, m]);
+
+  async function roundTrip() {
+    try {
+      add("Encrypting...");
+      const enc = await encryptFile(file, pw);
+      const hash = await sha256Hex(enc);
+      add("Hash: " + hash);
+
+      const up = await uploadEncrypted(enc, "test", DUMMY);
+      add("Uploaded. Server hash matches: " + (up.fileHash === hash));
+
+      const res = await fetch(`${BASE}/files/${hash}/raw`);
+      if (!res.ok) throw new Error("Download failed");
+      const bytes = new Uint8Array(await res.arrayBuffer());
+
+      const out = await decryptFile(bytes, pw);
+      add("Decrypted " + out.name);
+      saveFile(out.name, out.type, out.data);
+    } catch (e) {
+      add("Error: " + e.message);
+    }
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    <div style={{ padding: 24 }}>
+      <h1>Chainshare - Version 1</h1>
+      <input type="file" onChange={(e) => setFile(e.target.files[0])} /><br/><br/>
+      <input type="password" placeholder="password (min 10 chars)" value={pw} onChange={(e) => setPw(e.target.value)} /><br/><br/>
+      <button onClick={roundTrip} disabled={!file || pw.length < 10}>
+        Encrypt, upload & download
+      </button>
+      <pre>{log.join("\n")}</pre>
+    </div>
+  );
 }
-
-export default App

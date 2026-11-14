@@ -1,7 +1,40 @@
-node_modules
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment variables
 .env
-dist
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs & Vite
+dist/
+build/
+
+# Server uploads (binary encrypted payloads)
+server/uploads/
 uploads/
+
+# Hardhat blockchain workspace
+contracts/artifacts/
+contracts/cache/
+contracts/ignition/deployments/
 artifacts/
 cache/
 ignition/deployments/
+
+# Testing & Logs
+coverage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS-specific files
+.DS_Store
+Thumbs.db
