@@ -28,6 +28,13 @@ export default defineConfig({
       type: "edr-simulated",
       chainType: "op",
     },
+    // 🛡️ Add a clean local HTTP network with Chain ID 1337
+    localhost: {
+      type: "http",
+      chainType: "l1",
+      url: "http://127.0.0.1:8545",
+      chainId: 1337,
+    },
     sepolia: {
       type: "http",
       chainType: "l1",
