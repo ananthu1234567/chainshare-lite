@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { isAddress } from "ethers";
 import { FileRecord } from "../models/FileRecord.js";
-import { recordFileShare, verifyFileAccess, revokeFileShare } from "../services/blockchain.js";
+import { recordFileShare, verifyFileAccess, revokeFileShare } from "../../services/blockchain.js";
 
 const router = Router();
 const UPLOAD_DIR = path.resolve("uploads");
