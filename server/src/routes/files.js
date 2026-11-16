@@ -1,4 +1,3 @@
-
 import { Router } from "express";
 import multer from "multer";
 import { createHash } from "node:crypto";
@@ -6,6 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { isAddress } from "ethers";
 import { FileRecord } from "../models/FileRecord.js";
+import { recordFileShare, verifyFileAccess, revokeFileShare } from "../services/blockchain.js";
 
 const router = Router();
 const UPLOAD_DIR = path.resolve("uploads");
@@ -41,6 +41,22 @@ router.post("/", upload.single("file"), async (req, res) => {
   return res.status(201).json({ fileHash });
 });
 
+// Record a file share event on-chain
+router.post("/share", async (req, res) => {
+  try {
+    const { fileHash, receiverAddress } = req.body;
+    if (!HASH_RE.test(fileHash) || !isAddress(receiverAddress)) {
+      return res.status(400).json({ error: "Invalid fileHash or receiverAddress format" });
+    }
+
+    const tx = await recordFileShare(fileHash, receiverAddress);
+    return res.status(200).json({ success: true, txHash: tx.txHash });
+  } catch (error) {
+    console.error("On-chain share error:", error);
+    return res.status(500).json({ error: error.message || "Failed to record share on-chain" });
+  }
+});
+
 // Labels and sizes for a list of hashes: /api/files/info?hashes=0x..,0x..
 router.get("/info", async (req, res) => {
   const hashes = String(req.query.hashes || "")
@@ -55,12 +71,21 @@ router.get("/info", async (req, res) => {
   res.json(out);
 });
 
-// TEMPORARY (Week 1 only). Delete this route in Week 3 and replace it with the guard
-router.get("/:hash/raw", async (req, res) => {
+// Guarded download route replacing the temporary raw route
+router.get("/:hash/download", async (req, res) => {
   const hash = req.params.hash.toLowerCase();
+  const requester = String(req.query.requester || "").toLowerCase();
+
   if (!HASH_RE.test(hash)) return res.status(400).json({ error: "Bad hash" });
+  if (!isAddress(requester)) return res.status(400).json({ error: "Invalid requester address" });
+
+  // Verify on-chain access via the deployed smart contract
+  const hasAccess = await verifyFileAccess(hash, requester);
+  if (!hasAccess) {
+    return res.status(403).json({ error: "Access denied by smart contract policy" });
+  }
+
   res.sendFile(path.join(UPLOAD_DIR, `${hash}.bin`));
 });
 
 export default router;
-/* [cite: 1, 11] */

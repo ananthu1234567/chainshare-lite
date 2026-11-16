@@ -1,45 +1,75 @@
 import { useState } from "react";
+import { ethers } from "ethers";
 import { encryptFile, decryptFile, sha256Hex } from "./lib/crypto";
 import { uploadEncrypted } from "./lib/api";
 import { saveFile } from "./lib/saveFile";
 
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
-const DUMMY = "0x0000000000000000000000000000000000000001";
+const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+const CONTRACT_ABI = [
+  "function shareFile(bytes32 fileHash, address receiver) external"
+];
 
 export default function App() {
   const [file, setFile] = useState(null);
   const [pw, setPw] = useState("");
+  const [receiver, setReceiver] = useState("");
   const [status, setStatus] = useState("Ready to encrypt and transfer.");
   const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function roundTrip() {
-    if (!file || pw.length < 10) return;
+    if (!file || pw.length < 10 || !ethers.isAddress(receiver)) return;
     setLoading(true);
     setIsError(false);
     try {
+      // 1. Connect Browser Wallet (MetaMask)
+      setStatus("Connecting to wallet...");
+      if (!window.ethereum) throw new Error("MetaMask is required");
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const accounts = await provider.send("eth_requestAccounts", []);
+      const uploader = accounts[0];
+
+      // 2. Encrypt file in browser
       setStatus("Encrypting file in browser (AES-256-GCM)...");
       const enc = await encryptFile(file, pw);
       
+      // 3. Compute hash
       setStatus("Computing file SHA-256 hash...");
       const hash = await sha256Hex(enc);
 
+      // 4. Upload encrypted payload to server
       setStatus("Uploading encrypted payload to server...");
-      await uploadEncrypted(enc, file.name, DUMMY);
+      await uploadEncrypted(enc, file.name, uploader);
 
+      // 5. Trigger Smart Contract Share Transaction
+      setStatus("Submitting share transaction to blockchain...");
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      const tx = await contract.shareFile(hash, receiver);
+      await tx.wait();
+
+      // 6. Notify backend of share
+      await fetch(`${BASE}/files/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileHash: hash, receiverAddress: receiver })
+      });
+
+      // 7. Verify via download / decryption roundtrip
       setStatus("Fetching encrypted payload back for verification...");
-      const res = await fetch(`${BASE}/files/${hash}/raw`);
-      if (!res.ok) throw new Error("Download failed from server");
+      const res = await fetch(`${BASE}/files/${hash}/download?requester=${receiver}`);
+      if (!res.ok) throw new Error("Download denied by smart contract policy");
       const bytes = new Uint8Array(await res.arrayBuffer());
 
       setStatus("Decrypting file locally...");
       const out = await decryptFile(bytes, pw);
 
-      setStatus(`Success! Decrypted & saved: ${out.name}`);
+      setStatus(`Success! Shared on-chain & decrypted: ${out.name}`);
       saveFile(out.name, out.type, out.data);
     } catch (e) {
       setIsError(true);
-      setStatus("Error: " + e.message);
+      setStatus("Error: " + (e.reason || e.message));
     } finally {
       setLoading(false);
     }
@@ -59,7 +89,7 @@ export default function App() {
       <div style={{
         width: "100%",
         maxWidth: 460,
-        height: 620,
+        height: 680,
         backgroundColor: "#111b21",
         borderRadius: 16,
         overflow: "hidden",
@@ -94,10 +124,10 @@ export default function App() {
           </div>
           <div>
             <div style={{ color: "#e9edef", fontWeight: 600, fontSize: 16 }}>
-              ChainShare - Version 1
+              ChainShare - Smart Contract V1
             </div>
             <div style={{ color: "#00a884", fontSize: 12 }}>
-              end-to-end encrypted transfer
+              on-chain access control & E2EE
             </div>
           </div>
         </div>
@@ -126,7 +156,7 @@ export default function App() {
             maxWidth: "88%",
             marginBottom: 4
           }}>
-            🔐 Files are encrypted in your browser with AES-256-GCM before leaving your device.
+            🔐 Files are browser-encrypted & access-controlled via Hardhat smart contracts.
           </div>
 
           {/* Clean Status Message Bubble */}
@@ -180,6 +210,23 @@ export default function App() {
             />
           </label>
 
+          {/* Recipient Address Input */}
+          <input
+            type="text"
+            placeholder="Recipient Wallet Address (0x...)"
+            value={receiver}
+            onChange={(e) => setReceiver(e.target.value)}
+            style={{
+              backgroundColor: "#2a3942",
+              border: "none",
+              borderRadius: 8,
+              padding: "10px 14px",
+              color: "#e9edef",
+              fontSize: 14,
+              outline: "none"
+            }}
+          />
+
           {/* Password + Send Row */}
           <div style={{ display: "flex", gap: 8 }}>
             <input
@@ -200,17 +247,17 @@ export default function App() {
             />
             <button
               onClick={roundTrip}
-              disabled={!file || pw.length < 10 || loading}
-              title="Encrypt, upload & download"
+              disabled={!file || pw.length < 10 || !ethers.isAddress(receiver) || loading}
+              title="Encrypt, share on-chain & download"
               style={{
-                backgroundColor: (!file || pw.length < 10 || loading) ? "#2a3942" : "#00a884",
-                color: (!file || pw.length < 10 || loading) ? "#8696a0" : "#111b21",
+                backgroundColor: (!file || pw.length < 10 || !ethers.isAddress(receiver) || loading) ? "#2a3942" : "#00a884",
+                color: (!file || pw.length < 10 || !ethers.isAddress(receiver) || loading) ? "#8696a0" : "#111b21",
                 border: "none",
                 borderRadius: 8,
                 padding: "0 18px",
                 fontWeight: 600,
                 fontSize: 14,
-                cursor: (!file || pw.length < 10 || loading) ? "not-allowed" : "pointer",
+                cursor: (!file || pw.length < 10 || !ethers.isAddress(receiver) || loading) ? "not-allowed" : "pointer",
                 transition: "background-color 0.2s"
               }}
             >
