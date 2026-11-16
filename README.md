@@ -1,24 +1,23 @@
-# ChainShare Lite 🔒
+# 🛡️ ChainShare Lite
 
-A secure, WhatsApp-inspired file transfer system where files are encrypted directly in the browser, stored securely on an Express server, and access permissions are enforced via a Solidity smart contract on the blockchain[cite: 1, 2].
+> A secure, decentralized, WhatsApp-inspired file transfer system built with browser-native cryptography, a MERN stack backend, and Solidity smart contracts enforcing on-chain access control.
 
 ---
 
-## 🚀 The Problem & Solution
+## ✨ Features
 
-* **The Problem:** Traditional file-sharing platforms let server administrators read every file, and there is no cryptographic proof that files haven't been tampered with.
-* **The Solution:** 
-  1. **Client-Side Encryption:** Files are encrypted in the browser using **AES-256-GCM** with a key derived via **PBKDF2** (600,000 iterations) from a user password[cite: 2, 8]. The server only ever receives unreadable binary bytes[cite: 2].
-  2. **Blockchain Verification:** The **SHA-256 hash** of the encrypted file is logged to a local smart contract along with the sender, receiver, and timestamp[cite: 2].
-  3. **Signed Access Control:** To download a file, the receiver signs a message using **MetaMask** (no gas required), and the Express server verifies permissions directly against the blockchain before serving the file[cite: 2, 3, 23].
+* **Zero-Knowledge Client-Side Encryption:** Files are fully encrypted and decrypted directly in the browser using **AES-256-GCM** and **SHA-256** via the native Web Crypto API. The server never sees plain text data or encryption passwords.
+* **Smart Contract Access Control:** Access rights (`share`, `revoke`, `hasAccess`) are immutably managed on-chain via a custom Solidity smart contract (`FileShare.sol`).
+* **On-Chain Server Guard:** The backend verifies access permissions directly against the blockchain before streaming any encrypted file binaries to a requester.
+* **Sleek Cyber-Emerald UI:** A modern glassmorphic dark-mode interface complete with an automated wallet address-detection badge and real-time step transfer status logs.
 
 ---
 
 ## 🛠️ Tech Stack
 
-* **Frontend:** React (Vite template), React Router, MetaMask, Ethers.js v6[cite: 5]
-* **Backend:** Node.js, Express, Multer, Mongoose (MongoDB)[cite: 7]
-* **Cryptography:** Browser-native **Web Crypto API** (AES-256-GCM, PBKDF2, SHA-256)[cite: 1, 5, 8]
-* **Blockchain:** Solidity (`^0.8.24`), Hardhat (local chain), Hardhat Ignition[cite: 4, 5, 15, 18]
+* **Frontend:** React, Vite, Ethers.js v6
+* **Backend:** Node.js, Express, Multer, Mongoose / MongoDB
+* **Smart Contracts:** Solidity, Hardhat v3, Hardhat Ignition, Mocha & Chai
+* **Cryptography:** Web Crypto API (AES-256-GCM, SHA-256)
 
 ---
